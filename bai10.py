@@ -1,0 +1,478 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+
+from core.bai10_model import (
+    ITEM_NAMES,
+    ITEMS,
+    run_full_bai10,
+)
+from services.ai_agent import (
+    GeminiAgentError,
+    analyze_result,
+    gemini_is_configured,
+)
+from ui.theme import page_header
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DATA_PATH = ROOT / "data" / "bai10_scenarios.csv"
+MODEL_VERSION = "bai10_v1"
+
+PINK = "#D989A5"
+ROSE = "#F4B8C8"
+LAVENDER = "#CDB8E5"
+MINT = "#A8D5D1"
+YELLOW = "#F2D7A7"
+BLUE = "#A9C9E8"
+TEXT = "#503743"
+GRID = "#EEDFE5"
+BG = "#FFF9FB"
+
+
+def style_plotly(fig, title, x_title="", y_title="", height=500):
+    fig.update_layout(
+        title={"text": title, "x": 0.02, "xanchor": "left"},
+        paper_bgcolor=BG,
+        plot_bgcolor=BG,
+        font={"family": "Arial", "color": TEXT, "size": 13},
+        title_font={"size": 19, "color": TEXT},
+        xaxis_title=x_title,
+        yaxis_title=y_title,
+        legend_title_text="",
+        height=height,
+        margin={"l": 60, "r": 35, "t": 72, "b": 65},
+    )
+    fig.update_xaxes(showgrid=False, linecolor="#DCCBD3")
+    fig.update_yaxes(gridcolor=GRID, zerolinecolor="#DCCBD3")
+    return fig
+
+
+def csv_bytes(df):
+    return df.to_csv(index=False).encode("utf-8-sig")
+
+
+page_header(
+    "Bài 10 — Quy hoạch ngẫu nhiên hai giai đoạn dưới bất định",
+    "Tách quyết định first-stage và recourse, tính EV, EEV, VSS, EVPI và xây dựng phương án robust minimax regret.",
+)
+
+st.markdown(
+    """
+    <div style="background:#FFF1F6;border:1px solid #F0D5DF;
+    border-radius:16px;padding:18px 20px;margin-bottom:16px;color:#503743;">
+    <b>First-stage:</b> kế hoạch ngân sách phải quyết định trước khi biết tương lai.
+    <br><b>Second-stage:</b> điều chỉnh theo kịch bản lạc quan, cơ sở,
+    bi quan hoặc khủng hoảng.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+if not DATA_PATH.exists():
+    st.error(f"Không tìm thấy dữ liệu: {DATA_PATH}")
+    st.stop()
+
+with st.expander("⚙️ Thiết lập quy hoạch ngẫu nhiên", expanded=True):
+    c1, c2 = st.columns(2)
+    first_budget = c1.number_input(
+        "Ngân sách first-stage (tỷ VND)",
+        10000.0,
+        60000.0,
+        30000.0,
+        1000.0,
+    )
+    adjustment_penalty = c2.slider(
+        "Chi phí điều chỉnh recourse",
+        0.00,
+        0.25,
+        0.05,
+        0.01,
+    )
+
+    run_clicked = st.button(
+        "🌸 Chạy SP, EV, EEV, WS và Robust",
+        type="primary",
+        use_container_width=True,
+    )
+
+signature = (
+    MODEL_VERSION,
+    first_budget,
+    adjustment_penalty,
+)
+
+if (
+    run_clicked
+    or "bai10_result" not in st.session_state
+    or st.session_state.get("bai10_signature") != signature
+):
+    st.session_state.pop("bai10_gemini_analysis", None)
+
+    try:
+        with st.spinner("Đang giải toàn bộ hệ kịch bản..."):
+            st.session_state["bai10_result"] = run_full_bai10(
+                DATA_PATH,
+                first_stage_budget=first_budget,
+                adjustment_penalty=adjustment_penalty,
+            )
+            st.session_state["bai10_signature"] = signature
+    except Exception as error:
+        st.error(f"Không chạy được Bài 10: {error}")
+        st.stop()
+
+result = st.session_state["bai10_result"]
+sp = result["sp"]
+ev = result["ev"]
+eev = result["eev"]
+robust = result["robust"]
+metrics = result["metrics"]
+
+if not sp.get("success", False):
+    st.error(
+        "Bài 10 cần PuLP/CBC để giải mô hình. "
+        f"Trạng thái: {sp.get('status', 'Không xác định')}"
+    )
+    st.code(
+        "python -m pip install pulp",
+        language="bash",
+    )
+    st.stop()
+
+tabs = st.tabs([
+    "10.1 — Bối cảnh",
+    "10.2 — Mô hình hai giai đoạn",
+    "10.3 — Dữ liệu kịch bản",
+    "10.5.1 — Stochastic solution",
+    "10.5.2 — EV & deterministic",
+    "10.5.3 — VSS & EVPI",
+    "10.5.4 — Robust regret",
+    "10.6 — Chính sách",
+    "✨ Phân tích AI",
+])
+
+with tabs[0]:
+    st.subheader("10.1 — Quyết định hiện tại dưới bất định tương lai")
+    context = pd.DataFrame({
+        "Nguồn bất định": [
+            "Cầu xuất khẩu",
+            "Dòng FDI",
+            "Địa chính trị",
+            "Năng lực hấp thụ AI",
+        ],
+        "Ảnh hưởng": [
+            "Thay đổi lợi ích K, D, AI, H",
+            "Thay đổi ngân sách điều chỉnh",
+            "Tăng chi phí và gián đoạn",
+            "Làm chênh lệch hiệu quả AI–H",
+        ],
+    })
+    st.dataframe(context, use_container_width=True, hide_index=True)
+
+    fig_prob = px.pie(
+        result["scenarios"],
+        names="scenario_name",
+        values="probability",
+        hole=0.45,
+        color_discrete_sequence=[MINT, PINK, LAVENDER, ROSE],
+    )
+    fig_prob.update_layout(
+        title="Xác suất bốn kịch bản",
+        height=480,
+        paper_bgcolor=BG,
+        font_color=TEXT,
+    )
+    st.plotly_chart(fig_prob, use_container_width=True)
+
+with tabs[1]:
+    st.subheader("10.2 — Cấu trúc mô hình")
+    st.latex(r"\max \sum_j \beta_jx_j+\sum_s p_s\sum_j(\beta_{s,j}-c_{adj})y_{s,j}")
+    st.latex(r"\sum_jx_j\le B_1")
+    st.latex(r"\sum_jy_{s,j}\le B_{2,s}\quad \forall s")
+    st.latex(r"x_H\ge H_{min},\quad x_D+x_{AI}\ge DAI_{min}")
+    st.markdown(
+        r"""
+        - \(x_j\): quyết định **here-and-now**.
+        - \(y_{s,j}\): quyết định **wait-and-see** sau khi kịch bản \(s\) xảy ra.
+        - RP/SP: lời giải stochastic.
+        - EV: lời giải dùng hệ số trung bình.
+        - EEV: đánh giá lời giải EV trong phân phối kịch bản thật.
+        - WS: biết trước hoàn hảo kịch bản.
+        """
+    )
+
+with tabs[2]:
+    st.subheader("10.3 — Bốn kịch bản kinh tế")
+    scenarios = result["scenarios"].copy()
+    st.dataframe(scenarios.round(4), use_container_width=True, hide_index=True)
+
+    beta_long = scenarios.melt(
+        id_vars=["scenario_name", "probability"],
+        value_vars=["beta_K", "beta_D", "beta_AI", "beta_H"],
+        var_name="Hạng mục",
+        value_name="Hệ số",
+    )
+    beta_long["Hạng mục"] = beta_long["Hạng mục"].str.replace("beta_", "", regex=False)
+
+    fig_beta = px.bar(
+        beta_long,
+        x="scenario_name",
+        y="Hệ số",
+        color="Hạng mục",
+        barmode="group",
+        color_discrete_sequence=[PINK, MINT, LAVENDER, YELLOW],
+    )
+    st.plotly_chart(
+        style_plotly(fig_beta, "Hệ số lợi ích recourse theo kịch bản", "Kịch bản", "Hệ số", 540),
+        use_container_width=True,
+    )
+
+    fig_budget = px.bar(
+        scenarios,
+        x="scenario_name",
+        y="recourse_budget",
+        color="scenario_name",
+        text_auto=",.0f",
+        color_discrete_sequence=[MINT, PINK, LAVENDER, ROSE],
+    )
+    fig_budget.update_layout(showlegend=False)
+    st.plotly_chart(
+        style_plotly(fig_budget, "Ngân sách recourse theo kịch bản", "Kịch bản", "Tỷ VND"),
+        use_container_width=True,
+    )
+
+with tabs[3]:
+    st.subheader("10.5.1 — Lời giải stochastic hai giai đoạn")
+    if not sp["success"]:
+        st.error(sp["status"])
+    else:
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Trạng thái", sp["status"])
+        k2.metric("RP — Expected value", f"{sp['objective']:,.2f}")
+        k3.metric("First-stage budget", f"{sum(sp['x'].values()):,.0f}")
+
+        first_stage = pd.DataFrame({
+            "Mã": ITEMS,
+            "Hạng mục": [ITEM_NAMES[j] for j in ITEMS],
+            "First-stage": [sp["x"][j] for j in ITEMS],
+        })
+        st.dataframe(first_stage.round(3), use_container_width=True, hide_index=True)
+
+        fig_first = px.bar(
+            first_stage,
+            x="Hạng mục",
+            y="First-stage",
+            color="Hạng mục",
+            text_auto=",.0f",
+            color_discrete_sequence=[PINK, MINT, LAVENDER, YELLOW],
+        )
+        fig_first.update_layout(showlegend=False)
+        st.plotly_chart(
+            style_plotly(fig_first, "Quyết định first-stage của SP", "Hạng mục", "Tỷ VND"),
+            use_container_width=True,
+        )
+
+        st.dataframe(sp["scenario_table"].round(3), use_container_width=True, hide_index=True)
+
+        recourse_long = sp["scenario_table"].melt(
+            id_vars=["scenario_name"],
+            value_vars=[f"y_{j}" for j in ITEMS],
+            var_name="Hạng mục",
+            value_name="Recourse",
+        )
+        recourse_long["Hạng mục"] = recourse_long["Hạng mục"].str.replace("y_", "", regex=False)
+
+        fig_recourse = px.bar(
+            recourse_long,
+            x="scenario_name",
+            y="Recourse",
+            color="Hạng mục",
+            barmode="stack",
+            color_discrete_sequence=[PINK, MINT, LAVENDER, YELLOW],
+        )
+        st.plotly_chart(
+            style_plotly(fig_recourse, "Điều chỉnh second-stage theo kịch bản", "Kịch bản", "Tỷ VND"),
+            use_container_width=True,
+        )
+
+with tabs[4]:
+    st.subheader("10.5.2 — Deterministic từng kịch bản và mô hình EV")
+    st.dataframe(result["deterministic"].round(3), use_container_width=True, hide_index=True)
+
+    compare = result["x_compare"].melt(
+        id_vars="Hạng mục",
+        value_vars=["SP", "EV", "Robust"],
+        var_name="Lời giải",
+        value_name="Ngân sách",
+    )
+    fig_compare = px.bar(
+        compare,
+        x="Hạng mục",
+        y="Ngân sách",
+        color="Lời giải",
+        barmode="group",
+        color_discrete_sequence=[PINK, MINT, LAVENDER],
+    )
+    st.plotly_chart(
+        style_plotly(fig_compare, "So sánh first-stage SP, EV và Robust", "Hạng mục", "Tỷ VND"),
+        use_container_width=True,
+    )
+
+    scenario_values = pd.concat([
+        sp["scenario_table"][["scenario_name", "total_value_if_s"]].assign(solution="SP"),
+        eev["scenario_table"][["scenario_name", "total_value_if_s"]].assign(solution="EEV — x_EV cố định"),
+    ])
+    fig_values = px.bar(
+        scenario_values,
+        x="scenario_name",
+        y="total_value_if_s",
+        color="solution",
+        barmode="group",
+        color_discrete_sequence=[PINK, MINT],
+    )
+    st.plotly_chart(
+        style_plotly(fig_values, "Giá trị SP và EV-fixed theo từng kịch bản", "Kịch bản", "Giá trị"),
+        use_container_width=True,
+    )
+
+with tabs[5]:
+    st.subheader("10.5.3 — VSS và EVPI")
+    st.dataframe(metrics.round(4), use_container_width=True, hide_index=True)
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("RP", f"{result['RP']:,.2f}")
+    m2.metric("WS", f"{result['WS']:,.2f}")
+    m3.metric("VSS", f"{result['VSS']:,.2f}")
+    m4.metric("EVPI", f"{result['EVPI']:,.2f}")
+
+    fig_metrics = px.bar(
+        metrics,
+        x="Chỉ tiêu",
+        y="Giá trị",
+        color="Chỉ tiêu",
+        text_auto=".2f",
+        color_discrete_sequence=[PINK, MINT, LAVENDER, YELLOW, ROSE, BLUE],
+    )
+    fig_metrics.update_layout(showlegend=False)
+    fig_metrics.update_xaxes(tickangle=-20)
+    st.plotly_chart(
+        style_plotly(fig_metrics, "RP, EV, EEV, WS, VSS và EVPI", "Chỉ tiêu", "Giá trị", 560),
+        use_container_width=True,
+    )
+
+    st.info(
+        "VSS dương cho thấy mô hình hóa phân phối kịch bản tạo giá trị so với quyết định theo trung bình. "
+        "EVPI là mức tối đa có thể chi cho thông tin hoàn hảo."
+    )
+
+with tabs[6]:
+    st.subheader("10.5.4 — Robust minimax regret")
+    if not robust["success"]:
+        st.error(robust["status"])
+    else:
+        r1, r2 = st.columns(2)
+        r1.metric("Maximum regret", f"{robust['maximum_regret']:,.2f}")
+        r2.metric("Expected robust value", f"{robust['expected_value']:,.2f}")
+
+        st.dataframe(robust["regret_table"].round(4), use_container_width=True, hide_index=True)
+
+        fig_regret = px.bar(
+            robust["regret_table"],
+            x="scenario_name",
+            y="regret",
+            color="scenario_name",
+            text_auto=".2f",
+            color_discrete_sequence=[MINT, PINK, LAVENDER, ROSE],
+        )
+        fig_regret.update_layout(showlegend=False)
+        st.plotly_chart(
+            style_plotly(fig_regret, "Regret của phương án robust theo kịch bản", "Kịch bản", "Regret"),
+            use_container_width=True,
+        )
+
+        value_long = robust["regret_table"].melt(
+            id_vars="scenario_name",
+            value_vars=["scenario_optimum", "robust_value"],
+            var_name="Loại",
+            value_name="Giá trị",
+        )
+        fig_robust = px.bar(
+            value_long,
+            x="scenario_name",
+            y="Giá trị",
+            color="Loại",
+            barmode="group",
+            color_discrete_sequence=[PINK, MINT],
+        )
+        st.plotly_chart(
+            style_plotly(fig_robust, "Tối ưu hoàn hảo và giá trị robust", "Kịch bản", "Giá trị"),
+            use_container_width=True,
+        )
+
+with tabs[7]:
+    st.subheader("10.6 — Thảo luận chính sách")
+    st.markdown(
+        f"""
+        **a) Vì sao không dùng kịch bản trung bình?** EEV =
+        **{eev['objective']:,.2f}**, trong khi RP =
+        **{result['RP']:,.2f}**. Chênh lệch VSS =
+        **{result['VSS']:,.2f}** là giá trị của việc xét bất định một cách có hệ thống.
+
+        **b) Giá trị thông tin:** EVPI = **{result['EVPI']:,.2f}**.
+        Chính phủ không nên chi cho hệ thống dự báo nhiều hơn lợi ích tối đa này,
+        trừ khi hệ thống còn tạo thêm lợi ích quản trị khác.
+
+        **c) SP hay Robust?** SP tối đa hóa kỳ vọng; robust minimax regret giảm
+        thiệt hại tương đối trong kịch bản xấu. Khi rủi ro địa chính trị cao hoặc
+        chính phủ có mức ác cảm rủi ro lớn, robust có thể phù hợp hơn.
+
+        **d) Hàm ý:** ngân sách first-stage nên dành phần lõi cho H, D và năng lực
+        điều chỉnh; recourse phải đủ linh hoạt để chuyển hướng sang AI hoặc hạ tầng
+        khi cầu quốc tế và FDI thay đổi.
+        """
+    )
+
+with tabs[8]:
+    st.subheader("Tác nhân AI — Bài 10")
+    configured = gemini_is_configured()
+    if not configured:
+        st.info("Phần AI sẽ được chuẩn hóa đồng loạt sau khi hoàn thành Bài 12.")
+
+    summary = f"""
+Bài 10:
+- RP: {result['RP']:.6f}
+- EV: {ev['objective']:.6f}
+- EEV: {eev['objective']:.6f}
+- WS: {result['WS']:.6f}
+- VSS: {result['VSS']:.6f}
+- EVPI: {result['EVPI']:.6f}
+- Maximum regret: {robust.get('maximum_regret')}
+- First stage SP: {sp.get('x')}
+- First stage EV: {ev.get('x')}
+- First stage robust: {robust.get('x')}
+"""
+
+    if st.button(
+        "✨ Phân tích kết quả bằng Gemini",
+        disabled=not configured,
+        use_container_width=True,
+        key="gemini_bai10",
+    ):
+        try:
+            with st.spinner("Gemini đang phân tích Bài 10..."):
+                st.session_state["bai10_gemini_analysis"] = analyze_result(
+                    exercise_name="Bài 10 — Quy hoạch ngẫu nhiên hai giai đoạn",
+                    model_name="SP, EV, EEV, VSS, EVPI và minimax regret",
+                    parameters={"first_stage_budget": first_budget, "adjustment_penalty": adjustment_penalty},
+                    result_summary=summary,
+                    policy_questions="Giá trị của stochastic solution, thông tin hoàn hảo và lựa chọn SP–Robust.",
+                )
+        except GeminiAgentError as error:
+            st.error(str(error))
+
+    if st.session_state.get("bai10_gemini_analysis"):
+        st.markdown(st.session_state["bai10_gemini_analysis"])
