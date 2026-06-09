@@ -5,6 +5,10 @@ from typing import Any
 import streamlit as st
 
 
+# ============================================================
+# BẢNG MÀU PASTEL DÙNG CHUNG CHO TOÀN WEBSITE
+# ============================================================
+
 BG_MAIN = "#FFF9FB"
 BG_CARD = "#FFF3F7"
 BG_SOFT = "#FAF4FC"
@@ -34,6 +38,7 @@ PASTEL_COLORS = [
     PEACH,
 ]
 
+# Các bí danh giữ tương thích với những page cũ.
 BG = BG_MAIN
 CARD = BG_CARD
 CARD_2 = BG_SOFT
@@ -41,17 +46,48 @@ TEXT = TEXT_MAIN
 PASTEL_SEQUENCE = PASTEL_COLORS
 
 
+# ============================================================
+# CSS TOÀN CỤC
+# ============================================================
+
 def inject_global_css() -> None:
+    """
+    Chèn CSS pastel dùng chung cho toàn bộ ứng dụng Streamlit.
+    Có thể gọi nhiều lần mà không làm hỏng giao diện.
+    """
+
     st.markdown(
         f"""
         <style>
+        :root {{
+            --aideom-bg: {BG_MAIN};
+            --aideom-card: {BG_CARD};
+            --aideom-text: {TEXT_MAIN};
+            --aideom-subtext: {TEXT_SUB};
+            --aideom-border: {BORDER};
+            --aideom-pink: {PINK};
+        }}
+
+        html, body, [class*="css"] {{
+            font-family:
+                Inter,
+                "Segoe UI",
+                Arial,
+                sans-serif;
+        }}
+
         .stApp {{
             background: {BG_MAIN};
             color: {TEXT_MAIN};
         }}
 
         section[data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, #FCEEF4 0%, #FFF7FA 100%);
+            background:
+                linear-gradient(
+                    180deg,
+                    #FCEEF4 0%,
+                    #FFF7FA 100%
+                );
             border-right: 1px solid {BORDER};
         }}
 
@@ -67,6 +103,7 @@ def inject_global_css() -> None:
 
         h1, h2, h3, h4, h5, h6 {{
             color: {TEXT_MAIN} !important;
+            letter-spacing: -0.01em;
         }}
 
         p, li, label, span {{
@@ -77,13 +114,22 @@ def inject_global_css() -> None:
             color: #A95575 !important;
         }}
 
+        /* Tiêu đề trang */
         .aideom-page-header {{
-            background: linear-gradient(135deg, #F7C6D7 0%, #E6D7F3 52%, #D7ECF0 100%);
+            background:
+                linear-gradient(
+                    135deg,
+                    #F7C6D7 0%,
+                    #E6D7F3 52%,
+                    #D7ECF0 100%
+                );
             border: 1px solid {BORDER};
             border-radius: 22px;
             padding: 24px 26px;
             margin-bottom: 18px;
-            box-shadow: 0 8px 22px rgba(92, 53, 74, 0.08);
+            box-shadow:
+                0 8px 22px
+                rgba(92, 53, 74, 0.08);
         }}
 
         .aideom-page-title {{
@@ -100,11 +146,15 @@ def inject_global_css() -> None:
             line-height: 1.65;
         }}
 
+        /* Metric cards */
         div[data-testid="stMetric"] {{
             background: {BG_CARD};
             border: 1px solid {BORDER};
             border-radius: 16px;
             padding: 12px 14px;
+            box-shadow:
+                0 5px 14px
+                rgba(92, 53, 74, 0.05);
         }}
 
         div[data-testid="stMetricLabel"] *,
@@ -113,6 +163,7 @@ def inject_global_css() -> None:
             color: {TEXT_MAIN} !important;
         }}
 
+        /* Tabs */
         button[data-baseweb="tab"] {{
             color: {TEXT_MAIN} !important;
             font-weight: 650 !important;
@@ -123,6 +174,7 @@ def inject_global_css() -> None:
             border-bottom-color: {PINK} !important;
         }}
 
+        /* Nút */
         .stButton > button {{
             background: {PINK} !important;
             color: white !important;
@@ -130,6 +182,20 @@ def inject_global_css() -> None:
             border-radius: 12px !important;
             font-weight: 700 !important;
             min-height: 42px;
+        }}
+
+        .stButton > button:hover {{
+            background: #C97595 !important;
+            color: white !important;
+            box-shadow:
+                0 5px 14px
+                rgba(92, 53, 74, 0.16);
+        }}
+
+        .stButton > button:disabled {{
+            background: #E8CAD5 !important;
+            color: #FFFFFF !important;
+            opacity: 0.80;
         }}
 
         .stDownloadButton > button {{
@@ -141,6 +207,25 @@ def inject_global_css() -> None:
             min-height: 42px;
         }}
 
+        /* Ô nhập */
+        div[data-baseweb="input"] > div,
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="textarea"] > div {{
+            background: #FFFDFE !important;
+            border-color: {BORDER} !important;
+            color: {TEXT_MAIN} !important;
+        }}
+
+        input, textarea {{
+            color: {TEXT_MAIN} !important;
+        }}
+
+        /* Slider */
+        div[data-testid="stSlider"] * {{
+            color: {TEXT_MAIN};
+        }}
+
+        /* Bảng */
         div[data-testid="stDataFrame"] {{
             border: 1px solid {BORDER};
             border-radius: 12px;
@@ -148,13 +233,36 @@ def inject_global_css() -> None:
             background: #FFFDFE;
         }}
 
+        /* Expander */
         details[data-testid="stExpander"] {{
             background: #FFFDFE;
             border: 1px solid {BORDER};
             border-radius: 14px;
         }}
 
+        /* Alert */
         div[data-testid="stAlert"] {{
+            border-radius: 14px;
+        }}
+
+        /* Code */
+        code {{
+            color: #62384A !important;
+        }}
+
+        pre {{
+            background: #FFF3F7 !important;
+            border: 1px solid {BORDER} !important;
+            border-radius: 12px !important;
+        }}
+
+        /* Menu trang */
+        nav[data-testid="stSidebarNav"] span {{
+            color: {TEXT_MAIN} !important;
+        }}
+
+        /* Plotly container */
+        div[data-testid="stPlotlyChart"] {{
             border-radius: 14px;
         }}
         </style>
@@ -164,20 +272,46 @@ def inject_global_css() -> None:
 
 
 def apply_theme() -> None:
+    """
+    Hàm mà app.py hiện đang import.
+
+    Đây là bí danh chính thức của inject_global_css(),
+    giúp tương thích với app.py và các phiên bản code cũ.
+    """
+
     inject_global_css()
 
 
-def page_header(title: str, subtitle: str = "") -> None:
+# ============================================================
+# TIÊU ĐỀ TRANG
+# ============================================================
+
+def page_header(
+    title: str,
+    subtitle: str = "",
+) -> None:
+    """
+    Hiển thị tiêu đề gradient pastel cho từng bài.
+    """
+
     st.markdown(
         f"""
         <div class="aideom-page-header">
-            <div class="aideom-page-title">{title}</div>
-            <div class="aideom-page-subtitle">{subtitle}</div>
+            <div class="aideom-page-title">
+                {title}
+            </div>
+            <div class="aideom-page-subtitle">
+                {subtitle}
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+
+# ============================================================
+# STYLE PLOTLY
+# ============================================================
 
 def style_plotly(
     fig: Any,
@@ -186,6 +320,12 @@ def style_plotly(
     y_title: str = "",
     height: int = 500,
 ) -> Any:
+    """
+    Đồng bộ nền pastel và chữ đậm cho biểu đồ Plotly.
+
+    Hàm nhận Any để không bắt buộc import plotly trong theme.py.
+    """
+
     fig.update_layout(
         title={
             "text": title,
@@ -195,12 +335,14 @@ def style_plotly(
         paper_bgcolor=BG_MAIN,
         plot_bgcolor=BG_MAIN,
         font={
-            "family": 'Inter, "Segoe UI", Arial, sans-serif',
+            "family":
+                'Inter, "Segoe UI", Arial, sans-serif',
             "color": TEXT_MAIN,
             "size": 14,
         },
         title_font={
-            "family": 'Inter, "Segoe UI", Arial, sans-serif',
+            "family":
+                'Inter, "Segoe UI", Arial, sans-serif',
             "size": 21,
             "color": TEXT_MAIN,
         },
@@ -221,6 +363,7 @@ def style_plotly(
         },
     )
 
+    # Một số loại biểu đồ như Sankey hoặc Polar không có xaxis/yaxis.
     try:
         fig.update_xaxes(
             showgrid=False,

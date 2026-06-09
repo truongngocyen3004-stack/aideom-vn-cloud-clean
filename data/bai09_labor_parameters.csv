@@ -1,0 +1,9 @@
+﻿sector_id,sector,labor_million,risk_pct,a1_new_ai_job_per_billion,a2_new_digital_job_per_billion,b1_upgrade_job_per_billion,c1_displace_job_per_billion,d1_retrain_capacity_per_billion
+1,Nông-Lâm-Thủy sản,13.2,18,18,8,16,20,28
+2,CN chế biến chế tạo,11.5,42,35,10,22,34,30
+3,Xây dựng,4.8,25,22,8,18,24,27
+4,Bán buôn-bán lẻ,7.8,38,28,12,20,31,29
+5,Tài chính-Ngân hàng,0.55,52,48,15,26,42,34
+6,Logistics-Vận tải,1.95,35,30,11,21,29,30
+7,CNTT-Truyền thông,0.62,28,60,18,30,22,36
+8,Giáo dục-Đào tạo,2.15,22,26,9,28,18,38
