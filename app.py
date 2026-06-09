@@ -53,13 +53,13 @@ st.set_page_config(
 
 
 def missing_page_factory(title: str, rel_path: str):
-    def _missing_page():
+    def missing_page():
         apply_theme()
 
         st.title(title)
 
         st.error(
-            "Trang này chưa chạy được vì file page tương ứng chưa được upload lên GitHub."
+            "Trang này chưa chạy được vì file page tương ứng chưa được upload đủ lên GitHub."
         )
 
         st.markdown("File cần có:")
@@ -67,11 +67,21 @@ def missing_page_factory(title: str, rel_path: str):
         st.code(rel_path)
 
         st.info(
-            "Hãy upload lại thư mục `pages`, `core`, `services`, `ui`, `data` "
-            "từ máy lên GitHub rồi reboot Streamlit Cloud."
+            "Hãy kiểm tra trên GitHub xem thư mục `pages` đã có đủ "
+            "`bai01.py` đến `bai12.py` chưa."
         )
 
-    return _missing_page
+    safe_name = (
+        rel_path
+        .replace("/", "_")
+        .replace("\\", "_")
+        .replace(".", "_")
+        .replace("-", "_")
+    )
+
+    missing_page.__name__ = f"missing_{safe_name}"
+
+    return missing_page
 
 
 def make_page(
@@ -161,12 +171,12 @@ pages = [
     make_page(
         "pages/bai11.py",
         "Bài 11 — Q-learning RL",
-        "☯️",
+        "🤖",
     ),
     make_page(
         "pages/bai12.py",
         "Bài 12 — AIDEOM tích hợp",
-        "VN",
+        "🌸",
     ),
 ]
 
